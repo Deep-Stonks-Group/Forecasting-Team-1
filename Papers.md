@@ -13,3 +13,8 @@
 ## Maxb
 
 [Arbitrage in Crypto](https://onlinelibrary.wiley.com/doi/abs/10.1111/joes.12153)
+
+## Steven
+
+[Arbitrage in Crypto](https://zipmex.com/learn/arbitrage-cryptocurrency/)
+
