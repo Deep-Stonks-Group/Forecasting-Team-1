@@ -1,10 +1,12 @@
 import numpy as np 
 import pandas as pd
-import pandas_datareader as web
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from sklearn.preprocessing import MinMaxScaler
+import DataRetrieval as DR
+import pickle
+import talib as ta
 
 class LSTM(nn.Module):
 
@@ -40,15 +42,45 @@ def prepare_data(data, labels, seq_length):
         y.append(_y)
     return x, y
 
-#df = web.DataReader('SPX',data_source='yahoo',start='2012-01-01',end='2021-05-13',retry_count=5)
-#df.to_csv('SPX.csv')
+# Don't 100% trust this yet. Need to clean up.
+def print_acc(test_x,test_y,lstm,labl_scaler):
+    test_y_og = labl_scaler.inverse_transform(test_y.numpy()).tolist()
+    pred_tst_y = lstm(test_x)
+    pred_tst_y = labl_scaler.inverse_transform(pred_tst_y.detach().numpy()).tolist()
+
+    bi_tst_y = [1 if (test_y_og[i][0] - test_y_og[i - 1][0]) > 0 else 0 for i in range(1, len(test_y_og))]
+    bi_tst_pred = [1 if (pred_tst_y[i][0] - pred_tst_y[i - 1][0]) > 0 else 0 for i in range(1, len(pred_tst_y))]
+
+    acc_lst = [1 if bi_tst_pred[i] == bi_tst_y[i] else 0 for i in range(0, len(bi_tst_pred))]
+    acc = sum(acc_lst) / len(acc_lst)
+    rndm_acc = sum(bi_tst_y) / len(bi_tst_y)
+    rndm_acc = max(1-rndm_acc,rndm_acc)
+
+    print("Random: " + str(rndm_acc))
+    print("Accuracy: " + str(acc))
+
+
 data_scaler = MinMaxScaler()
 labl_scaler = MinMaxScaler()
-data_source = pd.read_csv('DIA.csv')
+
+## Update dataframe keys to lowercase for crypto
+# data_source = DR.get_crypto_data('BTC-USD',interval='1h',start_date='2021-04-01-00-00')
+data_source = DR.get_stock_data('UBER',interval='1d',start_date='2018-04-01',end_date='2021-06-01')
+
+# Adding RSI
+rsi = ta.RSI(data_source['Close'])
+data_source['RSI'] = rsi
+
+#Adding SMA
+sma = ta.SMA(data_source['Close'])
+data_source['SMA'] = sma
+
 # Date High Low Open Close Volume AdjClose
-scaled_data = data_scaler.fit_transform(data_source[['High','Low','Volume']]) 
-scaled_lbls = labl_scaler.fit_transform(data_source[['Close']])
+scaled_data = data_scaler.fit_transform(data_source[['High','Low','Close','RSI','Volume']])[29:]
+scaled_lbls = labl_scaler.fit_transform(data_source[['SMA']])[29:]
 #normed = data_source[data_source.columns[1:]].apply(lambda x: x/x.max())
+
+
 
 seq_length = 10
 x, y = prepare_data(scaled_data, scaled_lbls, seq_length)
@@ -60,7 +92,7 @@ train_y = torch.Tensor(y[0:train_size])
 test_x = torch.Tensor(x[train_size:])
 test_y = torch.Tensor(y[train_size:])
 
-input_size = 3
+input_size = 5
 hidden_size = 6
 num_layers = 1
 num_classes = 1
@@ -99,3 +131,5 @@ plt.show()
 
 
 print('done')
+
+print_acc(test_x,test_y,lstm,labl_scaler)
