@@ -15,7 +15,7 @@ for pair in pairs:
     if pair['symbol'].upper() in my_pairs:
         my_pair_ids.append(pair['id'])
 
-mykey = '3961ZQ10CGAF0ZGSIJV7'
+mykey = ''
 client_conn = create_connection('wss://stream.cryptowat.ch/connect?apikey={}'.format(mykey))
 sub_msg = {
     'subscribe': {
