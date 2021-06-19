@@ -1,4 +1,4 @@
-import numpy as np 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import torch
@@ -7,21 +7,23 @@ from sklearn.preprocessing import MinMaxScaler
 import DataRetrieval as DR
 import pickle
 import talib as ta
+import sklearn.metrics as skm
+
 
 class LSTM(nn.Module):
 
     def __init__(self, num_classes, input_size, hidden_size, num_layers, seq_length):
         super(LSTM, self).__init__()
-        
+
         self.num_classes = num_classes
         self.num_layers = num_layers
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.seq_length = seq_length
-        
+
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
                             num_layers=num_layers, batch_first=True).float()
-    
+
         self.fc = nn.Linear(hidden_size, num_classes)
 
     def forward(self, x):
@@ -42,19 +44,31 @@ def prepare_data(data, labels, seq_length):
         y.append(_y)
     return x, y
 
+def calculate_classification(test_x,test_y,lstm,labl_scaler):
+    # Getting predictions for the test set.
+    pred_y = lstm(test_x)
+
+    # Transforming the labels back to original space
+    orig_y = labl_scaler.inverse_transform(test_y.numpy()).tolist()
+    pred_y = labl_scaler.inverse_transform(pred_y.detach().numpy()).tolist()
+
+    # Transforming labels to be returns instead of price
+    rtrn_y = [orig_y[i][0] - orig_y[i - 1][0] for i in range(1, len(orig_y))]
+    rtrn_pred = [pred_y[i][0] - pred_y[i - 1][0] for i in range(1, len(pred_y))]
+
+    # Getting Binary Classification
+    bin_y = [1 if i > 0 else 0 for i in rtrn_y]
+    bin_pred = [1 if i > 0 else 0 for i in rtrn_pred]
+    return bin_y, bin_pred
+
 # Don't 100% trust this yet. Need to clean up.
-def print_acc(test_x,test_y,lstm,labl_scaler):
-    test_y_og = labl_scaler.inverse_transform(test_y.numpy()).tolist()
-    pred_tst_y = lstm(test_x)
-    pred_tst_y = labl_scaler.inverse_transform(pred_tst_y.detach().numpy()).tolist()
+def print_acc(bin_y,bin_pred):
+    # Getting accuracy
+    acc = skm.accuracy_score(bin_y,bin_pred)
 
-    bi_tst_y = [1 if (test_y_og[i][0] - test_y_og[i - 1][0]) > 0 else 0 for i in range(1, len(test_y_og))]
-    bi_tst_pred = [1 if (pred_tst_y[i][0] - pred_tst_y[i - 1][0]) > 0 else 0 for i in range(1, len(pred_tst_y))]
-
-    acc_lst = [1 if bi_tst_pred[i] == bi_tst_y[i] else 0 for i in range(0, len(bi_tst_pred))]
-    acc = sum(acc_lst) / len(acc_lst)
-    rndm_acc = sum(bi_tst_y) / len(bi_tst_y)
-    rndm_acc = max(1-rndm_acc,rndm_acc)
+    # Accuracy if you randomly guessed
+    rndm_acc = sum(bin_y) / len(bin_y)
+    rndm_acc = max(1 - rndm_acc, rndm_acc)
 
     print("Random: " + str(rndm_acc))
     print("Accuracy: " + str(acc))
@@ -63,11 +77,12 @@ def print_acc(test_x,test_y,lstm,labl_scaler):
 data_scaler = MinMaxScaler()
 labl_scaler = MinMaxScaler()
 
-## Update dataframe keys to lowercase for crypto
-# data_source = DR.get_crypto_data('BTC-USD',interval='1h',start_date='2021-04-01-00-00')
-data_source = DR.get_stock_data('UBER',interval='1d',start_date='2018-04-01',end_date='2021-06-01')
+# Loading Data
+data_source = DR.get_crypto_data('BTC-USD',interval='1h',start_date='2021-04-01-00-00')
+# data_source = DR.get_stock_data('DIA',interval='1d',period='2y')
 
-# Adding RSI
+
+# Adding TAs
 rsi = ta.RSI(data_source['Close'])
 data_source['RSI'] = rsi
 
@@ -75,8 +90,14 @@ data_source['RSI'] = rsi
 sma = ta.SMA(data_source['Close'])
 data_source['SMA'] = sma
 
+#Adding EMA
+ema = ta.EMA(data_source['Close'])
+data_source['EMA'] = ema
+
+# I have concern here that the the scaler is introducing bias information to trianing. Such as the max/min if it is not
+# in the original test set.
 # Date High Low Open Close Volume AdjClose
-scaled_data = data_scaler.fit_transform(data_source[['High','Low','Close','RSI','Volume']])[29:]
+scaled_data = data_scaler.fit_transform(data_source[['High','Low','Close','Volume','EMA']])[29:]
 scaled_lbls = labl_scaler.fit_transform(data_source[['SMA']])[29:]
 #normed = data_source[data_source.columns[1:]].apply(lambda x: x/x.max())
 
@@ -86,7 +107,7 @@ seq_length = 10
 x, y = prepare_data(scaled_data, scaled_lbls, seq_length)
 dataX = torch.Tensor(np.array(x))
 dataY = torch.Tensor(np.array(y))
-train_size = int(len(y) * 0.75)
+train_size = int(len(y) * 0.9)
 train_x = torch.Tensor(x[0:train_size])
 train_y = torch.Tensor(y[0:train_size])
 test_x = torch.Tensor(x[train_size:])
@@ -132,4 +153,13 @@ plt.show()
 
 print('done')
 
-print_acc(test_x,test_y,lstm,labl_scaler)
+# Getting binary classification
+bin_y, bin_pred = calculate_classification(test_x,test_y,lstm,labl_scaler)
+
+# Printing Classification
+print_acc(bin_y,bin_pred)
+
+# Printing Confusion Matrix
+cfn_mtrx = skm.confusion_matrix(bin_y,bin_pred)
+print(cfn_mtrx)
+

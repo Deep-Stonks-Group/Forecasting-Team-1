@@ -15,7 +15,9 @@ def get_crypto_data(symbol,**kwargs):
         seconds = 300
     elif interval == '1m':
         seconds = 60
-    return HistoricalData(symbol,seconds,start_date,end_date).retrieve_data()
+    data = HistoricalData(symbol,seconds,start_date,end_date).retrieve_data()
+    data = data.rename(columns={"open": "Open", "high": "High","low": "Low", "close": "Close",'volume':'Volume'})
+    return data
 
 def get_stock_data(symbol,**kwargs):
     interval = kwargs.get('interval','1d')
