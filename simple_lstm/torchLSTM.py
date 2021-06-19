@@ -81,11 +81,6 @@ labl_scaler = MinMaxScaler()
 data_source = DR.get_crypto_data('BTC-USD',interval='1h',start_date='2021-04-01-00-00')
 # data_source = DR.get_stock_data('DIA',interval='1d',period='2y')
 
-
-# Adding TAs
-rsi = ta.RSI(data_source['Close'])
-data_source['RSI'] = rsi
-
 #Adding SMA
 sma = ta.SMA(data_source['Close'])
 data_source['SMA'] = sma
