@@ -1,13 +1,12 @@
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from sklearn.preprocessing import MinMaxScaler
-import DataRetrieval as DR
-import pickle
 import talib as ta
 import sklearn.metrics as skm
+from lib import DataRetrieval as DR
+from lib import Metrics as MET
 
 
 class LSTM(nn.Module):
@@ -34,7 +33,7 @@ class LSTM(nn.Module):
         out = self.fc(h_out)
         return out
 
-def prepare_data(data, labels, seq_length):
+def lstm_data_prep(data, labels, seq_length):
     x = []
     y = []
     for i in range(data.shape[0]-seq_length-1):
@@ -44,62 +43,27 @@ def prepare_data(data, labels, seq_length):
         y.append(_y)
     return x, y
 
-def calculate_classification(test_x,test_y,lstm,labl_scaler):
-    # Getting predictions for the test set.
-    pred_y = lstm(test_x)
-
-    # Transforming the labels back to original space
-    orig_y = labl_scaler.inverse_transform(test_y.numpy()).tolist()
-    pred_y = labl_scaler.inverse_transform(pred_y.detach().numpy()).tolist()
-
-    # Transforming labels to be returns instead of price
-    rtrn_y = [orig_y[i][0] - orig_y[i - 1][0] for i in range(1, len(orig_y))]
-    rtrn_pred = [pred_y[i][0] - pred_y[i - 1][0] for i in range(1, len(pred_y))]
-
-    # Getting Binary Classification
-    bin_y = [1 if i > 0 else 0 for i in rtrn_y]
-    bin_pred = [1 if i > 0 else 0 for i in rtrn_pred]
-    return bin_y, bin_pred
-
-# Don't 100% trust this yet. Need to clean up.
-def print_acc(bin_y,bin_pred):
-    # Getting accuracy
-    acc = skm.accuracy_score(bin_y,bin_pred)
-
-    # Accuracy if you randomly guessed
-    rndm_acc = sum(bin_y) / len(bin_y)
-    rndm_acc = max(1 - rndm_acc, rndm_acc)
-
-    print("Random: " + str(rndm_acc))
-    print("Accuracy: " + str(acc))
-
-
+# I want to eventually standardize the rest of this data preparation so that it can be used by other teams as well.
 data_scaler = MinMaxScaler()
 labl_scaler = MinMaxScaler()
 
 # Loading Data
-data_source = DR.get_crypto_data('BTC-USD',interval='1h',start_date='2021-04-01-00-00')
+data_source = DR.get_crypto_data('ETH-BTC',interval='1h',start_date='2021-04-01-00-00')
 # data_source = DR.get_stock_data('DIA',interval='1d',period='2y')
 
-#Adding SMA
-sma = ta.SMA(data_source['Close'])
-data_source['SMA'] = sma
+# Adding EMA/SMA to the data
+data_source = DR.add_SMA(data_source)
+data_source = DR.add_EMA(data_source)
 
-#Adding EMA
-ema = ta.EMA(data_source['Close'])
-data_source['EMA'] = ema
-
-# I have concern here that the the scaler is introducing bias information to trianing. Such as the max/min if it is not
-# in the original test set.
 # Date High Low Open Close Volume AdjClose
-scaled_data = data_scaler.fit_transform(data_source[['High','Low','Close','Volume','EMA']])[29:]
-scaled_lbls = labl_scaler.fit_transform(data_source[['SMA']])[29:]
+# Removes first 29 due to SMA.
+scaled_data = data_scaler.fit_transform(data_source[['High','Low','Close','Volume','EMA']])
+scaled_lbls = labl_scaler.fit_transform(data_source[['SMA']])
 #normed = data_source[data_source.columns[1:]].apply(lambda x: x/x.max())
 
 
-
 seq_length = 10
-x, y = prepare_data(scaled_data, scaled_lbls, seq_length)
+x, y = lstm_data_prep(scaled_data, scaled_lbls, seq_length)
 dataX = torch.Tensor(np.array(x))
 dataY = torch.Tensor(np.array(y))
 train_size = int(len(y) * 0.9)
@@ -148,13 +112,4 @@ plt.show()
 
 print('done')
 
-# Getting binary classification
-bin_y, bin_pred = calculate_classification(test_x,test_y,lstm,labl_scaler)
-
-# Printing Classification
-print_acc(bin_y,bin_pred)
-
-# Printing Confusion Matrix
-cfn_mtrx = skm.confusion_matrix(bin_y,bin_pred)
-print(cfn_mtrx)
-
+MET.print_metrics(test_x,test_y,lstm,labl_scaler)
