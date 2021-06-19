@@ -56,7 +56,6 @@ data_source = DR.add_SMA(data_source)
 data_source = DR.add_EMA(data_source)
 
 # Date High Low Open Close Volume AdjClose
-# Removes first 29 due to SMA.
 scaled_data = data_scaler.fit_transform(data_source[['High','Low','Close','Volume','EMA']])
 scaled_lbls = labl_scaler.fit_transform(data_source[['SMA']])
 #normed = data_source[data_source.columns[1:]].apply(lambda x: x/x.max())
@@ -66,7 +65,7 @@ seq_length = 10
 x, y = lstm_data_prep(scaled_data, scaled_lbls, seq_length)
 dataX = torch.Tensor(np.array(x))
 dataY = torch.Tensor(np.array(y))
-train_size = int(len(y) * 0.9)
+train_size = int(len(y) * 0.75)
 train_x = torch.Tensor(x[0:train_size])
 train_y = torch.Tensor(y[0:train_size])
 test_x = torch.Tensor(x[train_size:])

@@ -27,17 +27,28 @@ def get_acc(bin_y,bin_pred):
 
     return rndm_acc, acc
 
+# Output:
+#   true neg, false pos
+#   false neg, true pos
 def get_confusion_matrix(bin_y,bin_pred):
     cfn_mtrx = skm.confusion_matrix(bin_y, bin_pred)
+    tp = cfn_mtrx[1][1]
+    fp = cfn_mtrx[0][1]
+    tn = cfn_mtrx[0][0]
+    fn = cfn_mtrx[1][0]
     return cfn_mtrx
+
+def get_precision(cfn_mtrx):
+    precision = cfn_mtrx[1][1] / (cfn_mtrx[0][1] + cfn_mtrx[1][1])
+    return precision
 
 def print_metrics(test_x,test_y,model,label_scaler):
     # Getting binary classification
     bin_y, bin_pred = calculate_classification(test_x, test_y, model, label_scaler)
 
     rndm_acc, acc = get_acc(bin_y, bin_pred)
-
     cfn_mtrx = get_confusion_matrix(bin_y,bin_pred)
+    prec = get_precision(cfn_mtrx)
 
     # Printing Accuracy
     print("Random: " + str(rndm_acc))
@@ -46,3 +57,5 @@ def print_metrics(test_x,test_y,model,label_scaler):
     # Printing Confusion Matrix
     print("Confusion Matrix: ")
     print(cfn_mtrx)
+
+    print("Precision: " + str(prec))
