@@ -1,2 +1,4 @@
 .DS_Store
 Testing.ipynb
+*.egg-info
+__pycache__
