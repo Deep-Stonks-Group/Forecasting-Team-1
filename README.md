@@ -2,5 +2,5 @@
 
 https://cla-assistant.io/Deep-Stonks-Group/forecasting-team-1
 
-## install package and dependencies:
+## Install package and dependencies:
 1. in project root, use 'pip install -e .' to install the project as a local package and download required dependencies
