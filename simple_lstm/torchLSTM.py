@@ -110,13 +110,13 @@ class PredictionEngine():
     def save_model(self):
         name = ''.join(self.lstm.trained_tickers)
         with open('simple_lstm/models/' + name + '.p', 'wb') as outfile:
-            pickle.dump(self, outfile)
+            pickle.dump(self.lstm, outfile)
 
     def load_model(self, name):
         if name:
             try:
                 with open('simple_lstm/models/' + name + '.p', 'rb') as infile:
-                    return pickle.load(infile)
+                    self.lstm = pickle.load(infile)
             except Exception as e:
                 print('could not load model {}'.format(name))
                 raise
