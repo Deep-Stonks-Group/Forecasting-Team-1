@@ -108,6 +108,7 @@ class PredictionEngine():
         self.lstm = LSTM(num_classes, input_size, hidden_size, num_layers, self.seq_length)
 
     def save_model(self):
+        self.lstm.trained_tickers.sort()
         name = ''.join(self.lstm.trained_tickers)
         with open('simple_lstm/models/' + name + '.p', 'wb') as outfile:
             pickle.dump(self.lstm, outfile)
@@ -121,9 +122,10 @@ class PredictionEngine():
                 print('could not load model {}'.format(name))
                 raise
 
-    def train_ticker(self, ticker: str, training_set_coeff):
+    def train_ticker(self, ticker: str, training_set_coeff=0.8):
         if not self.lstm:
             self.create_model()
+        self.lstm.train()
         if ticker in self.lstm.trained_tickers:
             print(f'Already trained model on {ticker}')
             return
@@ -137,7 +139,7 @@ class PredictionEngine():
         train_model(self.lstm, train_x, train_y)
         self.lstm.trained_tickers.append(ticker)
 
-    def eval_ticker(self, ticker, training_set_coeff):
+    def eval_ticker(self, ticker, training_set_coeff=0.8):
         self.lstm.eval()
 
         stock_dataframe = retrieve_stock_data(ticker, self.input_dims, self.label_dims)
@@ -190,9 +192,10 @@ for stock in top_stocks:
 
 """
 
+predictor.train_ticker('GOOGL')
+predictor.train_ticker('FB')
 
-predictor.train_ticker('FB', 0.8)
-predictor.eval_ticker('FB', 0.8)
+predictor.eval_ticker('FB')
 predictor.save_model()
 
 
