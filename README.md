@@ -8,6 +8,7 @@ https://cla-assistant.io/Deep-Stonks-Group/forecasting-team-1
 ## Update PythonDataProcessing
 
 `pip uninstall PythonDataProcessing`
+
 `pip install -e.`
 
 *Note: this utilizes code from the PythonDataProcessing repo.
