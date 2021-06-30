@@ -5,9 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.nn as nn
-from lib import DataRetrieval as DR
-from lib import Metrics as MET
-from lib.DataRetrieval import add_technical_indicators
+from PythonDataProcessing import DataRetrieval as DR
+from PythonDataProcessing import Metrics as MET
 from pandas.core.frame import DataFrame
 from sklearn.preprocessing import MinMaxScaler
 
@@ -59,7 +58,7 @@ def retrieve_stock_data(ticker: str, input_dims, label_dims) -> DataFrame:
 
     for new_feature in new_features:
         try:
-            stock_dataframe = add_technical_indicators[new_feature](data_source)
+            stock_dataframe = DR.add_technical_indicators[new_feature](data_source)
         except KeyError:
             print(f'No function exists to add the dimension {new_feature}')
             raise
