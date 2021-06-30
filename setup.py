@@ -8,10 +8,8 @@ setup(
         'numpy==1.19.4',
         'torch==1.8.1',
         'torchvision==0.9.1',
-        'Historic-Crypto==0.1.4',
-        'yfinance==0.1.59',
-        'TA-Lib==0.4.20',
         'sklearn==0.0',
-        'matplotlib==3.3.3'
-    ]
+        'matplotlib==3.3.3',
+        'PythonDataProcessing @ git+https://github.com/Deep-Stonks-Group/PythonDataProcessing.git',
+    ],
 )
