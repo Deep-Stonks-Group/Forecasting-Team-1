@@ -178,14 +178,12 @@ class PredictionEngine():
         prediction = self.label_scaler.inverse_transform(output.data.numpy)
         return prediction
 
+"""
+top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
+for stock in top_stocks:
+    predictor = PredictionEngine()
+    predictor.train_ticker(stock)
+    predictor.save_model()
+"""
 
-""" USAGE EXAMPLE """
-
-#predictor = PredictionEngine()
-
-#predictor.train_ticker('FB')
-#predictor.save_model()
-
-#predictor.load_model('FB')
-#predictor.eval_ticker('FB')
 
