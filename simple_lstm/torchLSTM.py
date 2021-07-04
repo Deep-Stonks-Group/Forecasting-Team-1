@@ -168,11 +168,7 @@ class PredictionEngine():
         plt.show()
         MET.print_metrics(test_x,test_y,self.lstm,self.label_scaler)
 
-    def predict(self, ticker, input_sequence):
-        # would like to not fit scalers every time but I dont want to store them anywhere yet
-        stock_dataframe = retrieve_stock_data(ticker, self.input_dims, self.label_dims)
-        train_size = len(stock_dataframe)
-        self.fit_scalers(stock_dataframe, train_size, self.input_dims, self.label_dims)
+    def predict(self, input_sequence):
         scaled_input_sequence = self.data_scaler.transform(input_sequence)
         output = self.lstm(scaled_input_sequence)
         prediction = self.label_scaler.inverse_transform(output.data.numpy)
