@@ -170,9 +170,9 @@ class PredictionEngine():
         prediction = self.label_scaler.inverse_transform(output.data.numpy)
         return prediction
 
-predictor = PredictionEngine()
-predictor.load_model('AAPL')
-predictor.eval_ticker('AAPL')
+# predictor = PredictionEngine()
+# predictor.load_model('AAPL')
+# predictor.eval_ticker('AAPL')
 """
 top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
 for stock in top_stocks:
