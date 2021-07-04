@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from PythonDataProcessing import DataRetrieval as DR
 from PythonDataProcessing import Metrics as MET
+from PythonDataProcessing.DataRetrieval import add_technical_indicators
 from pandas.core.frame import DataFrame
 from sklearn.preprocessing import MinMaxScaler
 
@@ -46,11 +47,6 @@ def sliding_windows( data, labels, seq_length):
         x.append(_x)
         y.append(_y)
     return x, y
-
-add_technical_indicators = {
-    'EMA' : DR.add_EMA,
-    'SMA' : DR.add_SMA
-}
 
 def retrieve_stock_data(ticker: str, input_dims, label_dims) -> DataFrame:
     # Loading Data
@@ -174,6 +170,9 @@ class PredictionEngine():
         prediction = self.label_scaler.inverse_transform(output.data.numpy)
         return prediction
 
+predictor = PredictionEngine()
+predictor.load_model('AAPL')
+predictor.eval_ticker('AAPL')
 """
 top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
 for stock in top_stocks:
