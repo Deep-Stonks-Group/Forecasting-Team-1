@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from PythonDataProcessing import DataRetrieval as DR
 from PythonDataProcessing import Metrics as MET
+from PythonDataProcessing.DataRetrieval import add_technical_indicators
 from pandas.core.frame import DataFrame
 from sklearn.preprocessing import MinMaxScaler
 
@@ -58,29 +59,12 @@ def retrieve_stock_data(ticker: str, input_dims, label_dims) -> DataFrame:
 
     for new_feature in new_features:
         try:
-            stock_dataframe = DR.add_technical_indicators[new_feature](data_source)
+            stock_dataframe = add_technical_indicators[new_feature](data_source)
         except KeyError:
             print(f'No function exists to add the dimension {new_feature}')
             raise
 
     return stock_dataframe
-
-
-def fit_scalers(data_source: DataFrame, train_size, input_dims, label_dims):
-    data_scaler = MinMaxScaler()
-    labl_scaler = MinMaxScaler()
-
-    data_scaler.fit(data_source[input_dims].iloc[:train_size])
-    labl_scaler.fit(data_source[label_dims].iloc[:train_size])
-
-    return data_scaler, labl_scaler
-
-
-def normalize_stock_data(data_source, data_scaler, labl_scaler, input_dims, label_dims):
-    scaled_data = data_scaler.transform(data_source[input_dims])
-    scaled_lbls = labl_scaler.transform(data_source[label_dims])
-    return scaled_data, scaled_lbls
-
 
 
 def train_model(lstm, train_x, train_y, epochs=2000, learning_rate=.01):
@@ -102,27 +86,41 @@ class PredictionEngine():
         self.input_dims = input_dims
         self.label_dims = label_dims
         self.seq_length = seq_length
+        self.data_scaler = MinMaxScaler()
+        self.label_scaler = MinMaxScaler()
 
     def create_model(self, input_size=5, hidden_size=6, num_layers=1, num_classes=1):
         self.lstm = LSTM(num_classes, input_size, hidden_size, num_layers, self.seq_length)
 
     def save_model(self):
+        model = {k:v for k,v in self.__dict__.items()}
         self.lstm.trained_tickers.sort()
         name = ''.join(self.lstm.trained_tickers)
         with open('simple_lstm/models/' + name + '.p', 'wb') as outfile:
-            pickle.dump(self.lstm, outfile)
+            pickle.dump(model, outfile)
 
     def load_model(self, name):
         if name:
             try:
                 with open('simple_lstm/models/' + name + '.p', 'rb') as infile:
-                    self.lstm = pickle.load(infile)
+                    model = pickle.load(infile)
             except Exception as e:
                 print('could not load model {}'.format(name))
                 raise
+            self.__dict__ = {k:v for k,v in model.items()}
+            
+
+    def fit_scalers(self, data_source: DataFrame, train_size, input_dims, label_dims):
+        self.data_scaler.fit(data_source[input_dims].iloc[:train_size])
+        self.label_scaler.fit(data_source[label_dims].iloc[:train_size])
+
+    def normalize_stock_data(self, data_source, input_dims, label_dims):
+        scaled_data = self.data_scaler.transform(data_source[input_dims])
+        scaled_lbls = self.label_scaler.transform(data_source[label_dims])
+        return scaled_data, scaled_lbls
 
     def train_ticker(self, ticker: str, training_set_coeff=0.8):
-        if not self.lstm:
+        if not hasattr(self, 'lstm'):
             self.create_model()
         self.lstm.train()
         if ticker in self.lstm.trained_tickers:
@@ -130,8 +128,8 @@ class PredictionEngine():
             return
         stock_dataframe = retrieve_stock_data(ticker, self.input_dims, self.label_dims)
         train_size = int(len(stock_dataframe) * training_set_coeff)
-        data_scaler, label_scaler = fit_scalers(stock_dataframe, train_size, self.input_dims, self.label_dims)
-        scaled_data, scaled_labels = normalize_stock_data(stock_dataframe, data_scaler, label_scaler, self.input_dims, self.label_dims)
+        self.fit_scalers(stock_dataframe, train_size, self.input_dims, self.label_dims)
+        scaled_data, scaled_labels = self.normalize_stock_data(stock_dataframe, self.input_dims, self.label_dims)
         x, y = sliding_windows(scaled_data, scaled_labels, self.seq_length)
         train_x = torch.Tensor(x[0:train_size])
         train_y = torch.Tensor(y[0:train_size])
@@ -143,8 +141,8 @@ class PredictionEngine():
 
         stock_dataframe = retrieve_stock_data(ticker, self.input_dims, self.label_dims)
         train_size = int(len(stock_dataframe) * training_set_coeff)
-        data_scaler, label_scaler = fit_scalers(stock_dataframe, train_size, self.input_dims, self.label_dims)
-        scaled_data, scaled_labels = normalize_stock_data(stock_dataframe, data_scaler, label_scaler, self.input_dims, self.label_dims)
+        self.fit_scalers(stock_dataframe, train_size, self.input_dims, self.label_dims)
+        scaled_data, scaled_labels = self.normalize_stock_data(stock_dataframe, self.input_dims, self.label_dims)
         
         x, y = sliding_windows(scaled_data, scaled_labels, self.seq_length)
         dataX = torch.Tensor(np.array(x))
@@ -156,45 +154,31 @@ class PredictionEngine():
         data_predict = all_predict.data.numpy()
         dataY_plot = dataY.data.numpy()
 
-        data_predict = label_scaler.inverse_transform(data_predict)
-        dataY_plot = label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1))
+        data_predict = self.label_scaler.inverse_transform(data_predict)
+        dataY_plot = self.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1))
 
         plt.axvline(x=train_size, c='r', linestyle='--')
         plt.plot(dataY_plot)
         plt.plot(data_predict)
         plt.suptitle('Time-Series Prediction')
         plt.show()
-        MET.print_metrics(test_x,test_y,self.lstm,label_scaler)
+        MET.print_metrics(test_x,test_y,self.lstm,self.label_scaler)
 
-    def predict(self, ticker, input_sequence):
-        # would like to not fit scalers every time but I dont want to store them anywhere yet
-        stock_dataframe = retrieve_stock_data(ticker, self.input_dims, self.label_dims)
-        train_size = len(stock_dataframe)
-        data_scaler, label_scaler = fit_scalers(stock_dataframe, train_size, self.input_dims, self.label_dims)
-        scaled_input_sequence = data_scaler.transform(input_sequence)
+    def predict(self, input_sequence):
+        scaled_input_sequence = self.data_scaler.transform(input_sequence)
         output = self.lstm(scaled_input_sequence)
-        prediction = label_scaler.inverse_transform(output.data.numpy)
+        prediction = self.label_scaler.inverse_transform(output.data.numpy)
         return prediction
 
-
-""" USAGE EXAMPLE """
-
-predictor = PredictionEngine()
-predictor.create_model()
-
-""" training on multiple tickers produces far less accurate eval results than one ticker per model
-
-training_set_coeff = 0.8
+# predictor = PredictionEngine()
+# predictor.load_model('AAPL')
+# predictor.eval_ticker('AAPL')
+"""
 top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
 for stock in top_stocks:
-    model_1.train_ticker(stock, training_set_coeff)
-
+    predictor = PredictionEngine()
+    predictor.train_ticker(stock)
+    predictor.save_model()
 """
-
-predictor.train_ticker('GOOGL')
-predictor.train_ticker('FB')
-
-predictor.eval_ticker('FB')
-predictor.save_model()
 
 
