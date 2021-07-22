@@ -57,6 +57,7 @@ class PredictionEngine():
             training_set_coeff: What percent of data should be used for training?
         '''
         self.ticker = ticker
+        # Data/Feature Shape
         self.input_features = kwargs.get('input_features', ['High','Low','Close','Volume','EMA'])
         self.label_features = kwargs.get('label_features', ['SMA'])
         self.seq_length = kwargs.get('seq_length', 10)
@@ -65,8 +66,12 @@ class PredictionEngine():
         self.start_date = kwargs.get('start_date', None)
         self.end_date = kwargs.get('end_date', None)
         self.training_set_coeff = kwargs.get('training_set_coeff', 0.8)
+
+        # Training Parameters
         self.epochs = kwargs.get('epochs', 2000)
         self.learning_rate = kwargs.get('learning_rate', 0.01)
+
+        # Initializing the data and scalers
         loading_model = kwargs.get('loading_model', False)
         self.scaler = DR.Scaler(self.input_features,self.label_features)
         if not loading_model:
@@ -184,9 +189,6 @@ class PredictionEngine():
         data = DR.add_features(self.input_features, self.label_features, data)
         data = data.tail(self.seq_length)
         return predictor.predict(data[['High', 'Low', 'Close', 'Volume', 'EMA']])
-
-
-
 
 
 predictor = PredictionEngine('AAPL')
