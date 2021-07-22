@@ -57,15 +57,6 @@ class PredictionEngine():
             training_set_coeff: What percent of data should be used for training?
         '''
         self.ticker = ticker
-        # Data/Feature Shape
-        self.input_features = kwargs.get('input_features', ['High','Low','Close','Volume','EMA'])
-        self.label_features = kwargs.get('label_features', ['SMA'])
-        self.seq_length = kwargs.get('seq_length', 10)
-        self.interval = kwargs.get('interval', '1d')
-        self.period = kwargs.get('period', '2y')
-        self.start_date = kwargs.get('start_date', None)
-        self.end_date = kwargs.get('end_date', None)
-        self.training_set_coeff = kwargs.get('training_set_coeff', 0.8)
 
         # Training Parameters
         self.epochs = kwargs.get('epochs', 2000)
@@ -73,17 +64,17 @@ class PredictionEngine():
 
         # Initializing the data and scalers
         loading_model = kwargs.get('loading_model', False)
-        self.scaler = DR.Scaler(self.input_features,self.label_features)
+        self.data_handler = DR.LSTM_DATA_HANDLE(ticker,**kwargs)
         if not loading_model:
-            self.scaler.data_scaler = MinMaxScaler()
-            self.scaler.label_scaler = MinMaxScaler()
-            self.x,self.y = self.get_data()
+            self.data_handler.data_scaler = MinMaxScaler()
+            self.data_handler.label_scaler = MinMaxScaler()
+            self.x,self.y = self.data_handler.retrieve_data()
 
     def create_model(self, input_size=5, hidden_size=6, num_layers=1, num_classes=1):
         '''
         Initializes LSTM to be used for training.
         '''
-        self.lstm = LSTM(num_classes, input_size, hidden_size, num_layers, self.seq_length)
+        self.lstm = LSTM(num_classes, input_size, hidden_size, num_layers, self.data_handler.seq_length)
 
     def save_model(self):
         '''
@@ -97,7 +88,7 @@ class PredictionEngine():
 
     def load_model(self, name):
         '''
-        Loads model from simple_lstm/models/
+        Loads model from simple_lstm/models/ and all the other arguments.
         :param name: Name of the model you want to load.
         '''
         if name:
@@ -110,23 +101,6 @@ class PredictionEngine():
             for k,v in model.items():
                 self.__dict__[k] = v
 
-    def get_data(self):
-        '''
-        This function uses DataRtrieval to load the data, normalize it and format it to be used by the LSTM.
-        :return x: The input data for the model after it is loaded, split and ready to be used.
-        :return y: The labels for the model after it is loaded and adjusted.
-        '''
-        data = DR.get_stock_data(self.ticker, interval=self.interval,
-                                            period=self.period, start_date=self.start_date, end_date=self.end_date)
-        data = DR.add_features(self.input_features, self.label_features, data)
-
-        self.train_size = int(len(data) * self.training_set_coeff)
-        self.scaler.set_train_size(self.train_size)
-        self.scaler.fit_scalers(data)
-        scaled_data, scaled_labels = self.scaler.normalize_stock_data(data)
-        x, y = DR.sliding_windows(scaled_data, scaled_labels, self.seq_length)
-
-        return x,y
 
     def train_ticker(self):
         '''
@@ -140,8 +114,8 @@ class PredictionEngine():
             print(f'Already trained model on {self.ticker}')
             return
 
-        train_x = torch.Tensor(self.x[0:self.train_size])
-        train_y = torch.Tensor(self.y[0:self.train_size])
+        train_x = torch.Tensor(self.x[0:self.data_handler.train_size])
+        train_y = torch.Tensor(self.y[0:self.data_handler.train_size])
         train_model(self.lstm, train_x, train_y,epochs=self.epochs,learning_rate=self.learning_rate)
         self.lstm.trained_tickers.append(self.ticker)
 
@@ -177,28 +151,33 @@ class PredictionEngine():
         :param input_sequence:
         :return:
         '''
-        scaled_input_sequence = self.scaler.data_scaler.transform(input_sequence)
+        scaled_input_sequence = self.data_handler.data_scaler.transform(input_sequence)
         scaled_input_sequence = torch.tensor(scaled_input_sequence).float()
         scaled_input_sequence = torch.reshape(scaled_input_sequence,[1,10,5])
         output = self.lstm(scaled_input_sequence)
-        prediction = self.scaler.label_scaler.inverse_transform(output.data.numpy())[0][0]
+        prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy())[0][0]
         return prediction
 
     def predict_now(self):
-        data = DR.get_stock_data(self.ticker, interval=self.interval, period=self.period)
-        data = DR.add_features(self.input_features, self.label_features, data)
-        data = data.tail(self.seq_length)
-        return predictor.predict(data[['High', 'Low', 'Close', 'Volume', 'EMA']])
+        data = DR.get_stock_data(self.ticker, interval=self.data_handler.interval, period=self.data_handler.period)
+        data = DR.add_features(self.data_handler.input_features, self.data_handler.label_features, data)
+        data = data.tail(self.data_handler.seq_length)
+        return predictor.predict(data[self.data_handler.input_features])
 
 
-predictor = PredictionEngine('AAPL')
-# predictor.load_model('AAPL')
-# print(predictor.predict_now())
+ticker = 'CCL'
 
-predictor.create_model()
-predictor.train_ticker()
-predictor.eval_ticker()
-predictor.save_model()
+predictor = PredictionEngine(ticker)
+# predictor.create_model()
+# predictor.train_ticker()
+# predictor.save_model()
+predictor.load_model(ticker)
+print(predictor.predict_now())
+
+# predictor.create_model()
+# predictor.train_ticker()
+# # predictor.eval_ticker()
+# predictor.save_model()
 
 
 """
