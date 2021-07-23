@@ -47,14 +47,25 @@ class PredictionEngine():
 
     def __init__(self,ticker: str,**kwargs):
         '''
-        :param ticker: Sets the ticker you want to train on. *Required*
-        :param kwargs: Adjust the input for training.
-            input_features: What data do you want to use for training?
-            label_features: What do you want to use as a label?
-            seq_length: How many days/hours/etc. should be used for each input into LSTM.
-            interval: Should input be in terms of minutes/hours/days/weeks/months/years
-            period: How long should the input data span over?
-            training_set_coeff: What percent of data should be used for training?
+        Initialization of the data handler.
+
+          Input:
+              *ticker* (Required) - String ticker that you want to train on. \n
+              **kwargs**
+                  *epochs* (optional) - Number of epochs used for training.
+                  *learning_rate* (optional) - Learning rate used for training.
+                  *is_loading* (optional) - Indicates if you are loading or creating a model.
+
+                  *input_features* (Optional) - Array of features to be used for input. \n
+                  *label_features* (Optional) - Array of feature to be used for label. \n
+                  *indicator_key* (Optional) - String indicating which column in data you want to use for indicator. \n
+                  *seq_length* (Optional) - Integer length of sequence. \n
+                  *interval* (Optional) - String interval of prices: 1d, 1h, 5m or 1m. \n
+                  *period* (Optional) - String specify a length of data to be retrieved: 1d, 1y, 1m, 2y \n
+                  *start_date* (Optional) - The earliest historic data you want in form YYYY-MM-DD: 2000-01-01 \n
+                  *end_date* (Optional) - The latest historic data you want in form YYYY-MM-DD: 2000-01-01 \n
+                  *training_set_coeff* (Optional) - Decimal percent of dataset used for training. \n
+                  *is_crpyto* (Optional) - Boolean which indicates if ticker is a crypto. \n
         '''
         self.ticker = ticker
 
@@ -63,16 +74,23 @@ class PredictionEngine():
         self.learning_rate = kwargs.get('learning_rate', 0.01)
 
         # Initializing the data and scalers
-        loading_model = kwargs.get('loading_model', False)
+        is_loading = kwargs.get('is_loading', False)
         self.data_handler = DR.LSTM_DATA_HANDLE(ticker,**kwargs)
-        if not loading_model:
-            self.data_handler.data_scaler = MinMaxScaler()
-            self.data_handler.label_scaler = MinMaxScaler()
+        if not is_loading:
             self.x,self.y = self.data_handler.retrieve_data()
+            self.create_model(input_size=len(self.data_handler.input_features))
+        else:
+            self.load_model(ticker)
 
     def create_model(self, input_size=5, hidden_size=6, num_layers=1, num_classes=1):
         '''
         Initializes LSTM to be used for training.
+
+        Inputs:
+            *input_size* (optional) - Integer of features in input data. \n
+            *hidden_size* (optional) - Integer of hidden nodes. \n
+            *num_layers* (optional) - Integer of number of layers. \n
+            *num_classes* (optional) - Integer of labels associated with single input. \n
         '''
         self.lstm = LSTM(num_classes, input_size, hidden_size, num_layers, self.data_handler.seq_length)
 
@@ -89,7 +107,8 @@ class PredictionEngine():
     def load_model(self, name):
         '''
         Loads model from simple_lstm/models/ and all the other arguments.
-        :param name: Name of the model you want to load.
+        Inputs:
+            *name* (required): Name of the model you want to load.
         '''
         if name:
             try:
@@ -105,7 +124,6 @@ class PredictionEngine():
     def train_ticker(self):
         '''
         Loads the data, and gets the training data. Then passes the model and training data to train_model.
-        :return: Returns if model is already trained.
         '''
         if not hasattr(self, 'lstm'):
             self.create_model()
@@ -128,28 +146,35 @@ class PredictionEngine():
 
         dataX = torch.Tensor(np.array(self.x))
         dataY = torch.Tensor(np.array(self.y))
-        test_x = torch.Tensor(self.x[self.train_size:])
-        test_y = torch.Tensor(self.y[self.train_size:])
+        test_x = torch.Tensor(self.x[self.data_handler.train_size:])
+        test_y = torch.Tensor(self.y[self.data_handler.train_size:])
 
         all_predict = self.lstm(dataX)
         data_predict = all_predict.data.numpy()
         dataY_plot = dataY.data.numpy()
 
-        data_predict = self.scaler.label_scaler.inverse_transform(data_predict)
-        dataY_plot = self.scaler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1))
+        data_predict = self.data_handler.label_scaler.inverse_transform(data_predict)
+        dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1))
 
-        plt.axvline(x=self.train_size, c='r', linestyle='--')
+        plt.axvline(x=self.data_handler.train_size, c='r', linestyle='--')
         plt.plot(dataY_plot)
         plt.plot(data_predict)
         plt.suptitle('Time-Series Prediction')
         plt.show()
-        MET.print_metrics(test_x,test_y,self.lstm,self.scaler.label_scaler)
+        MET.print_metrics(test_x,test_y,self.lstm,self.data_handler.label_scaler)
 
     def predict(self, input_sequence):
         '''
+            Generates a prediction for a given input sequence.
+            Inputs:
+                *input_sequence* (required) - Data frame of historic data with correct input_features.
 
-        :param input_sequence:
-        :return:
+            Outputs:
+                *prediction* - The predicted future price.
+
+            Example:
+                predict(data[['High','Low','Close','Volume','EMA']])
+
         '''
         scaled_input_sequence = self.data_handler.data_scaler.transform(input_sequence)
         scaled_input_sequence = torch.tensor(scaled_input_sequence).float()
@@ -159,33 +184,53 @@ class PredictionEngine():
         return prediction
 
     def predict_now(self):
+        '''
+            Generates a prediction for the next minute/hour/day.
+            Outputs:
+                *prediction* - The predicted future price.
+        '''
         data = DR.get_stock_data(self.ticker, interval=self.data_handler.interval, period=self.data_handler.period)
         data = DR.add_features(self.data_handler.input_features, self.data_handler.label_features, data)
         data = data.tail(self.data_handler.seq_length)
         return predictor.predict(data[self.data_handler.input_features])
 
 
+
+# Create and train a model with all default values
 ticker = 'CCL'
-
-predictor = PredictionEngine(ticker)
-# predictor.create_model()
-# predictor.train_ticker()
-# predictor.save_model()
-predictor.load_model(ticker)
-print(predictor.predict_now())
-
-# predictor.create_model()
-# predictor.train_ticker()
-# # predictor.eval_ticker()
-# predictor.save_model()
+predictor = PredictionEngine(ticker) #Creates model
+predictor.train_ticker() # Trains model
+predictor.eval_ticker() # Plots and prints results
+predictor.save_model() # Stores model
 
 
-"""
+'''
+# Create and train an hourly crypto model.
+ticker = 'ETH-USD'
+predictor = PredictionEngine(ticker, is_crypto=True,interval='1h',start_date='2021-04-01-00-00') #Creates moddel
+predictor.train_ticker() # Trains model
+predictor.eval_ticker() # Plots and prints results
+predictor.save_model() # Stores model
+'''
+
+''' # Load a model and see the next days prediction
+ticker = 'CCL'
+predictor = PredictionEngine(ticker, is_loading=True) #Creates model
+print(predictor.predict_now()) # Print prediction for next day.
+'''
+
+""" # Loop through top 10 stocks and train a model.
 top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
 for stock in top_stocks:
-    predictor = PredictionEngine()
-    predictor.train_ticker(stock)
-    predictor.save_model()
+    predictor = PredictionEngine(stock,training_set_coeff=1) #Creates model
+    predictor.train_ticker() # Trains model
+    predictor.save_model() # Stores model
 """
 
+""" # Loop through top 10 stocks and print a prediction.
+top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
+for stock in top_stocks:
+    predictor = PredictionEngine(stock, is_loading=True)
+    print(predictor.predict_now())
+"""
 
