@@ -2,3 +2,5 @@
 Testing.ipynb
 *.egg-info
 __pycache__
+/simple_lstm/models/
+.idea
