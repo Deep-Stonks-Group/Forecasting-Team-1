@@ -96,7 +96,7 @@ class PredictionEngine():
 
     def save_model(self):
         '''
-        Saves the model under simple_lstm/models/ so that it can be used int future.
+        Saves the model under simple_lstm/models/ so that it can be used in the future.
         '''
         model = {k:v for k,v in self.__dict__.items()}
         self.lstm.trained_tickers.sort()

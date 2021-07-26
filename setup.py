@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name = 'forecast-team-1',
+    name = 'forecasting',
     packages = find_packages(),
     include_package_data = True,
     install_requires = [
