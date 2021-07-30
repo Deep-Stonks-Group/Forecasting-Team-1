@@ -66,6 +66,7 @@ class PredictionEngine():
                   *end_date* (Optional) - The latest historic data you want in form YYYY-MM-DD: 2000-01-01 \n
                   *training_set_coeff* (Optional) - Decimal percent of dataset used for training. \n
                   *is_crpyto* (Optional) - Boolean which indicates if ticker is a crypto. \n
+                  *normalizer_type (Optional) - String which indicates the type of normalizer to use: 'Relative' or 'MinMax'*
         '''
         self.ticker = ticker
 
@@ -101,7 +102,7 @@ class PredictionEngine():
         model = {k:v for k,v in self.__dict__.items()}
         self.lstm.trained_tickers.sort()
         name = ''.join(self.lstm.trained_tickers)
-        with open('simple_lstm/models/' + name + '.p', 'wb') as outfile:
+        with open('forecasting/models/' + name + '.p', 'wb') as outfile:
             pickle.dump(model, outfile)
 
     def load_model(self, name):
@@ -112,7 +113,7 @@ class PredictionEngine():
         '''
         if name:
             try:
-                with open('simple_lstm/models/' + name + '.p', 'rb') as infile:
+                with open('forecasting/models/' + name + '.p', 'rb') as infile:
                     model = pickle.load(infile)
             except Exception as e:
                 print('could not load model {}'.format(name))
@@ -153,15 +154,15 @@ class PredictionEngine():
         data_predict = all_predict.data.numpy()
         dataY_plot = dataY.data.numpy()
 
-        data_predict = self.data_handler.label_scaler.inverse_transform(data_predict)
-        dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1))
+        data_predict = self.data_handler.label_scaler.inverse_transform(data_predict,10)
+        dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1),10)
 
         plt.axvline(x=self.data_handler.train_size, c='r', linestyle='--')
         plt.plot(dataY_plot)
         plt.plot(data_predict)
         plt.suptitle('Time-Series Prediction')
         plt.show()
-        MET.print_metrics(test_x,test_y,self.lstm,self.data_handler.label_scaler)
+        MET.print_metrics(test_x,test_y,self.lstm,self.data_handler)
 
     def predict(self, input_sequence):
         '''
@@ -180,7 +181,7 @@ class PredictionEngine():
         scaled_input_sequence = torch.tensor(scaled_input_sequence).float()
         scaled_input_sequence = torch.reshape(scaled_input_sequence,[1,10,5])
         output = self.lstm(scaled_input_sequence)
-        prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy())[0][0]
+        prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy(),10)[0][0]
         return prediction
 
     def predict_now(self):
@@ -198,7 +199,7 @@ class PredictionEngine():
 
 # Create and train a model with all default values
 ticker = 'CCL'
-predictor = PredictionEngine(ticker) #Creates model
+predictor = PredictionEngine(ticker,epochs=200,normalizer_type='Relative') #Creates model
 predictor.train_ticker() # Trains model
 predictor.eval_ticker() # Plots and prints results
 predictor.save_model() # Stores model
