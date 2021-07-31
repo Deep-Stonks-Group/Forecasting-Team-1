@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 from PythonDataProcessing import DataRetrieval as DR
 from PythonDataProcessing import Metrics as MET
-from sklearn.preprocessing import MinMaxScaler
 
 
 class LSTM(nn.Module):
@@ -158,9 +157,12 @@ class PredictionEngine():
         dataY_plot = self.data_handler.inverse_y(dataY_plot.reshape(dataY_plot.shape[0],1), live=False)
 
         plt.axvline(x=self.data_handler.train_size, c='r', linestyle='--')
-        plt.plot(dataY_plot)
-        plt.plot(data_predict)
-        plt.suptitle('Time-Series Prediction')
+        plt.plot(dataY_plot,color='blue',label='Real Price')
+        plt.plot(data_predict,color='orange',label='Prediction')
+        plt.title(self.ticker.upper() + ' Price Prediction')
+        plt.xlabel("Time")
+        plt.ylabel("Price")
+        plt.legend()
         plt.show()
         MET.print_metrics(test_x,test_y,self.lstm,self.data_handler)
 
@@ -177,7 +179,6 @@ class PredictionEngine():
                 predict(data[['High','Low','Close','Volume','EMA']])
 
         '''
-        seq_len = self.data_handler.seq_length
         scaled_input_sequence = torch.Tensor(np.array(x))
 
         self.lstm.eval()
@@ -201,11 +202,11 @@ class PredictionEngine():
 
 # Create and train a model with all default values
 ticker = 'ETH-USD'
-predictor = PredictionEngine(ticker,period='7d',normalizer_type='Relative',interval='1m') #Creates model
+predictor = PredictionEngine(ticker,training_set_coeff=0.9,period='2y',normalizer_type='MinMax',interval='1h') #Creates model
 predictor.train_ticker() # Trains model
 predictor.eval_ticker() # Plots and prints results
 predictor.save_model()
-print(predictor.predict_now(period='7d'))
+print(predictor.predict_now(period='3mo'))
 
 '''
 # Create and train an hourly crypto model.
@@ -240,4 +241,5 @@ for stock in top_stocks:
 ''' Todo:
         - Check into how to use most recent data vs last datapoint.
         - Clean up code and Add comments.
+        - Add functionality to automatically identify if crypto based on name
 '''
