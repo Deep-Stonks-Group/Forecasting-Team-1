@@ -196,17 +196,20 @@ class PredictionEngine():
         self.data_handler.period = period
         x,y = self.data_handler.retrieve_data(live=True)
         pred = self.predict(x,live=True)
-        return pred[-1][0]
+        return pred[-2][0],pred[-1][0]
 
 
 
 # Create and train a model with all default values
-ticker = 'ETH-USD'
-predictor = PredictionEngine(ticker,training_set_coeff=0.9,period='2y',normalizer_type='MinMax',interval='1h') #Creates model
-predictor.train_ticker() # Trains model
+ticker = 'CCL'
+predictor = PredictionEngine(ticker,is_loading=True,training_set_coeff=0.9,period='2y',interval='1h',normalizer_type='Relative') #Creates model
+# predictor.train_ticker() # Trains model
 predictor.eval_ticker() # Plots and prints results
-predictor.save_model()
-print(predictor.predict_now(period='3mo'))
+# predictor.save_model()
+pred_prev,pred = predictor.predict_now(period='2y')
+print(pred_prev)
+print(pred)
+print(pred-pred_prev)
 
 '''
 # Create and train an hourly crypto model.
@@ -242,4 +245,5 @@ for stock in top_stocks:
         - Check into how to use most recent data vs last datapoint.
         - Clean up code and Add comments.
         - Add functionality to automatically identify if crypto based on name
+        - Revisit accuracy metric and think if pred or orig is better comparison
 '''
