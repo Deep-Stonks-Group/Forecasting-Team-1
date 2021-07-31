@@ -166,6 +166,15 @@ class PredictionEngine():
         plt.show()
         MET.print_metrics(test_x,test_y,self.lstm,self.data_handler)
 
+    def retrieve_rtrns(self):
+        self.lstm.eval()
+        dataX = torch.Tensor(np.array(self.x))
+        dataY = torch.Tensor(np.array(self.y))
+        test_x = torch.Tensor(self.x[self.data_handler.train_size:])
+        test_y = torch.Tensor(self.y[self.data_handler.train_size:])
+
+        return MET.get_rtrn_list(test_x,test_y,self.lstm,self.data_handler)
+
     def predict(self, x,live=False):
         '''
             Generates a prediction for a given input sequence.
@@ -196,54 +205,13 @@ class PredictionEngine():
         self.data_handler.period = period
         x,y = self.data_handler.retrieve_data(live=True)
         pred = self.predict(x,live=True)
-        return pred[-2][0],pred[-1][0]
+        pred_prev = pred[-2][0]
+        pred_now = pred[-1][0]
+        _, mean, std = MET.get_rtrn_list(pred)
+        pos = (pred_now - pred_prev) > mean + std / 2
+        return pos,pred_now,pred_prev
 
-
-
-# Create and train a model with all default values
-ticker = 'CCL'
-predictor = PredictionEngine(ticker,is_loading=True,training_set_coeff=0.9,period='2y',interval='1h',normalizer_type='Relative') #Creates model
-# predictor.train_ticker() # Trains model
-predictor.eval_ticker() # Plots and prints results
-# predictor.save_model()
-pred_prev,pred = predictor.predict_now(period='2y')
-print(pred_prev)
-print(pred)
-print(pred-pred_prev)
-
-'''
-# Create and train an hourly crypto model.
-ticker = 'ETH-USD'
-predictor = PredictionEngine(ticker, is_crypto=True,interval='1h',start_date='2021-04-01-00-00') #Creates moddel
-predictor.train_ticker() # Trains model
-predictor.eval_ticker() # Plots and prints results
-predictor.save_model() # Stores model
-'''
-
-''' # Load a model and see the next days prediction
-ticker = 'CCL'
-predictor = PredictionEngine(ticker, is_loading=True) #Creates model
-print(predictor.predict_now()) # Print prediction for next day.
-'''
-
-""" # Loop through top 10 stocks and train a model.
-top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
-for stock in top_stocks:
-    predictor = PredictionEngine(stock,training_set_coeff=1) #Creates model
-    predictor.train_ticker() # Trains model
-    predictor.save_model() # Stores model
-"""
-
-""" # Loop through top 10 stocks and print a prediction.
-top_stocks = ['AAPL', 'MSFT', 'AMZN', 'GOOGL', 'FB', 'CMCSA', 'JPM', 'HD', 'DIS', 'XOM']
-for stock in top_stocks:
-    predictor = PredictionEngine(stock, is_loading=True)
-    print(predictor.predict_now())
-"""
 
 ''' Todo:
-        - Check into how to use most recent data vs last datapoint.
         - Clean up code and Add comments.
-        - Add functionality to automatically identify if crypto based on name
-        - Revisit accuracy metric and think if pred or orig is better comparison
 '''
