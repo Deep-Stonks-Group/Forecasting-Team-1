@@ -154,8 +154,12 @@ class PredictionEngine():
         data_predict = all_predict.data.numpy()
         dataY_plot = dataY.data.numpy()
 
-        data_predict = self.data_handler.label_scaler.inverse_transform(data_predict,10)
-        dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1),10)
+        if self.data_handler.normalizer_type == 'MinMax':
+            data_predict = self.data_handler.label_scaler.inverse_transform(data_predict)
+            dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0], 1))
+        elif self.data_handler.normalizer_type == 'Relative':
+            data_predict = self.data_handler.label_scaler.inverse_transform(data_predict,10)
+            dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1),10)
 
         plt.axvline(x=self.data_handler.train_size, c='r', linestyle='--')
         plt.plot(dataY_plot)
@@ -164,7 +168,7 @@ class PredictionEngine():
         plt.show()
         MET.print_metrics(test_x,test_y,self.lstm,self.data_handler)
 
-    def predict(self, input_sequence):
+    def predict(self, x):
         '''
             Generates a prediction for a given input sequence.
             Inputs:
@@ -177,33 +181,39 @@ class PredictionEngine():
                 predict(data[['High','Low','Close','Volume','EMA']])
 
         '''
-        scaled_input_sequence = self.data_handler.data_scaler.transform(input_sequence)
-        scaled_input_sequence = torch.tensor(scaled_input_sequence).float()
-        scaled_input_sequence = torch.reshape(scaled_input_sequence,[1,10,5])
+        seq_len = self.data_handler.seq_length
+
+        scaled_input_sequence = torch.Tensor(np.array(x))
+
+        self.lstm.eval()
         output = self.lstm(scaled_input_sequence)
-        prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy(),10)[0][0]
+
+        if self.data_handler.normalizer_type == 'MinMax':
+            prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy())[0][0]
+        elif self.data_handler.normalizer_type == 'Relative':
+            prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy(), seq_len)
+
         return prediction
 
-    def predict_now(self):
+    def predict_now(self,period='2y'):
         '''
             Generates a prediction for the next minute/hour/day.
             Outputs:
                 *prediction* - The predicted future price.
         '''
-        data = DR.get_stock_data(self.ticker, interval=self.data_handler.interval, period=self.data_handler.period)
-        data = DR.add_features(self.data_handler.input_features, self.data_handler.label_features, data)
-        data = data.tail(self.data_handler.seq_length)
-        return predictor.predict(data[self.data_handler.input_features])
+        self.data_handler.period = period
+        x,y = self.data_handler.retrieve_data()
+        pred = self.predict(x)
+        return pred
 
 
 
 # Create and train a model with all default values
 ticker = 'CCL'
-predictor = PredictionEngine(ticker,epochs=200,normalizer_type='Relative') #Creates model
-predictor.train_ticker() # Trains model
-predictor.eval_ticker() # Plots and prints results
-predictor.save_model() # Stores model
-
+predictor = PredictionEngine(ticker,epochs=200,is_loading=True,period='Max',normalizer_type='Relative') #Creates model
+# predictor.train_ticker() # Trains model
+# predictor.eval_ticker() # Plots and prints results
+print(predictor.predict_now())
 
 '''
 # Create and train an hourly crypto model.
@@ -235,3 +245,12 @@ for stock in top_stocks:
     print(predictor.predict_now())
 """
 
+''' Todo:
+        - Need to fix issue where the model can't predict for last day. Can fix for prediction by removing -1 in DR from:
+            376
+            47
+            48
+        - Maybe move some inverse transformation stuff to DR.
+        - Add comments.
+        - Make sure it works even when model is old.
+'''
