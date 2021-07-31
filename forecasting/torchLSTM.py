@@ -154,12 +154,8 @@ class PredictionEngine():
         data_predict = all_predict.data.numpy()
         dataY_plot = dataY.data.numpy()
 
-        if self.data_handler.normalizer_type == 'MinMax':
-            data_predict = self.data_handler.label_scaler.inverse_transform(data_predict)
-            dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0], 1))
-        elif self.data_handler.normalizer_type == 'Relative':
-            data_predict = self.data_handler.label_scaler.inverse_transform(data_predict,10)
-            dataY_plot = self.data_handler.label_scaler.inverse_transform(dataY_plot.reshape(dataY_plot.shape[0],1),10)
+        data_predict = self.data_handler.inverse_y(data_predict, live=False)
+        dataY_plot = self.data_handler.inverse_y(dataY_plot.reshape(dataY_plot.shape[0],1), live=False)
 
         plt.axvline(x=self.data_handler.train_size, c='r', linestyle='--')
         plt.plot(dataY_plot)
@@ -168,7 +164,7 @@ class PredictionEngine():
         plt.show()
         MET.print_metrics(test_x,test_y,self.lstm,self.data_handler)
 
-    def predict(self, x):
+    def predict(self, x,live=False):
         '''
             Generates a prediction for a given input sequence.
             Inputs:
@@ -182,17 +178,12 @@ class PredictionEngine():
 
         '''
         seq_len = self.data_handler.seq_length
-
         scaled_input_sequence = torch.Tensor(np.array(x))
 
         self.lstm.eval()
         output = self.lstm(scaled_input_sequence)
 
-        if self.data_handler.normalizer_type == 'MinMax':
-            prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy())[0][0]
-        elif self.data_handler.normalizer_type == 'Relative':
-            prediction = self.data_handler.label_scaler.inverse_transform(output.data.numpy(), seq_len)
-
+        prediction = self.data_handler.inverse_y(output.data.numpy(),live=live)
         return prediction
 
     def predict_now(self,period='2y'):
@@ -202,17 +193,18 @@ class PredictionEngine():
                 *prediction* - The predicted future price.
         '''
         self.data_handler.period = period
-        x,y = self.data_handler.retrieve_data()
-        pred = self.predict(x)
-        return pred
+        x,y = self.data_handler.retrieve_data(live=True)
+        pred = self.predict(x,live=True)
+        return pred[-1][0]
 
 
 
 # Create and train a model with all default values
-ticker = 'CCL'
-predictor = PredictionEngine(ticker,epochs=200,is_loading=True,period='Max',normalizer_type='Relative') #Creates model
-# predictor.train_ticker() # Trains model
-# predictor.eval_ticker() # Plots and prints results
+ticker = 'AAPL'
+predictor = PredictionEngine(ticker,epochs=200,period='2y',normalizer_type='MinMax') #Creates model
+predictor.train_ticker() # Trains model
+predictor.eval_ticker() # Plots and prints results
+predictor.save_model()
 print(predictor.predict_now())
 
 '''
@@ -246,11 +238,5 @@ for stock in top_stocks:
 """
 
 ''' Todo:
-        - Need to fix issue where the model can't predict for last day. Can fix for prediction by removing -1 in DR from:
-            376
-            47
-            48
-        - Maybe move some inverse transformation stuff to DR.
-        - Add comments.
-        - Make sure it works even when model is old.
+        - Clean up code and Add comments.
 '''
