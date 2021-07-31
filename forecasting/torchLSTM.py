@@ -200,12 +200,12 @@ class PredictionEngine():
 
 
 # Create and train a model with all default values
-ticker = 'AAPL'
-predictor = PredictionEngine(ticker,epochs=200,period='2y',normalizer_type='MinMax') #Creates model
+ticker = 'ETH-USD'
+predictor = PredictionEngine(ticker,period='7d',normalizer_type='Relative',interval='1m') #Creates model
 predictor.train_ticker() # Trains model
 predictor.eval_ticker() # Plots and prints results
 predictor.save_model()
-print(predictor.predict_now())
+print(predictor.predict_now(period='7d'))
 
 '''
 # Create and train an hourly crypto model.
@@ -238,5 +238,6 @@ for stock in top_stocks:
 """
 
 ''' Todo:
+        - Check into how to use most recent data vs last datapoint.
         - Clean up code and Add comments.
 '''
