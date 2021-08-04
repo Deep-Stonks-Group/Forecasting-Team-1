@@ -17,7 +17,7 @@ def test_get_stock_data():
     dummy_keys = dummy_data.keys().values
 
     data = DR.get_stock_data(ticker, start_date=start_date,end_date=end_date)
-    data = dummy_data.round(decimals=4)
+    data = data.round(decimals=4)
     keys = data.keys().values
 
     assert all(keys==dummy_keys)
